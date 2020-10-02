@@ -1,102 +1,48 @@
 import React from "react";
+import { connect } from "react-redux";
+import {
+  addObject,
+  changeObject,
+  inputHandler,
+  clearInputHandler,
+} from "./actions/";
 import "./App.css";
 
-class App extends React.Component {
-  constructor() {
-    super();
-    this.state = {
-      content: [
-        {
-          type: "panel",
-          props: {
-            width: 500,
-            height: 200,
-            visible: true,
-          },
-          content: [
-            {
-              type: "label",
-              props: {
-                caption: "innerLabel1",
-                visible: false,
-              },
-            },
-            {
-              type: "label",
-              props: {
-                caption: "innerLabel2",
-                visible: false,
-              },
-            },
-            {
-              type: "label",
-              props: {
-                caption: "innerLabel3",
-                visible: false,
-              },
-            },
-            {
-              type: "button",
-              props: {
-                width: 100,
-                height: 50,
-                visible: true,
-                caption: "кнопка",
-              },
-            },
-          ],
-        },
-        {
-          type: "label",
-          props: {
-            caption: "test",
-            visible: false,
-          },
-        },
-        {
-          type: "button",
-          props: {
-            width: 100,
-            height: 50,
-            visible: true,
-            caption: "кнопка",
-          },
-        },
-      ],
-      path: null,
-      value: null,
+
+
+const App = ({
+  content,
+  state,
+  addObject,
+  changeObject,
+  inputHandler,
+  clearInputHandler,
+}) => {
+  let inputPath;
+  let inputValue;
+
+  const elementCreator = (elem, index) => {
+    let styles = {
+      border: elem.type === "panel" ? "1px solid black" : null,
+      width: elem.props.width,
+      height: elem.props.height,
+      display: elem.props.visible ? "" : "none",
     };
-  }
-  
-  elementCreator = (elem, index) => {
-    let childArr = [];
     switch (elem.type) {
       case "panel": {
-        let styles = {
-          border: "1px solid black",
-          width: elem.props.width,
-          height: elem.props.height,
-          display: elem.props.visible ? "" : "none",
-        };
-        if (elem.content) {
-          for (let i = 0; i < elem.content.length; i++) {
-            childArr.push(this.elementCreator(elem.content[i], i));
-          }
-        }
         return (
           <div
             className={elem.type}
             style={styles}
             key={elem.caption ? elem.caption : index}
           >
-            {childArr ? childArr : null}
+            {elem.content
+              ? elem.content.map((item, index) => elementCreator(item, index))
+              : null}
           </div>
         );
       }
       case "label": {
-        let styles = {
-          display: elem.props.visible ? "" : "none",
-        };
         return (
           <span className={elem.type} style={styles} key={index}>
             {elem.props.caption}
@@ -104,11 +50,6 @@ class App extends React.Component {
         );
       }
       case "button": {
-        let styles = {
-          width: elem.props.width,
-          height: elem.props.height,
-          display: elem.props.visible ? "" : "none",
-        };
         return (
           <button className={elem.type} style={styles} key={index}>
             {elem.props.caption}
@@ -121,90 +62,117 @@ class App extends React.Component {
     }
   };
 
-  parseValue = (value) => {
+  const parseValue = (value) => {
     if (/{/.test(value)) {
-      value = JSON.parse(value.replace(/'/g, "").replace(/[a-zA-Z]+/g, '"$&"'));
-      this.setState({ value });
-    } else if (/[0-9]/.test(value)) {
-      this.setState({ value: +value });
+      inputHandler(
+        "value",
+        JSON.parse(
+          value.replace(/'/g, "").replace(/\b((?!false|true)(\w+))/g, '"$&"')
+        )
+      );
+    } else if (/\d/.test(value)) {
+      inputHandler("value", +value);
     } else if (/false|true/.test(value)) {
-      value = value === "true";
-      this.setState({ value });
+      inputHandler("value", value === "true" ? true : false);
     } else {
-      this.setState({ value });
+      inputHandler("value", value);
     }
   };
 
-  changeObject = (obj, keys, newValue) => {
-    for (let i = 0; i < keys.length; i++) {
-      if (
-        obj[keys[i]] &&
-        typeof obj[keys[i]] == "object" &&
-        typeof keys !== "string"
-      ) {
-        let tempObj = { ...obj[keys[i]] };
-        return {
-          ...obj,
-          [keys[i]]: this.changeObject(tempObj, keys.slice(1), newValue),
-        };
-      } else {
-        obj[keys + ""] = newValue;
-        return obj;
-      }
+  const changeProps = (obj, str, value) => {
+    const parts = str.split(".");
+    let newObj;
+    if (/\[\d\]/.test(parts[0])) {
+      const [, , props, index] = parts[0].match(/((\b[a-z]+\b)\[(\d)\])/);
+      newObj = obj[props][+index];
+    } else {
+      newObj = obj[parts[0]];
+    }
+    if (parts[1]) {
+      parts.splice(0, 1);
+      const newString = parts.join(".");
+      changeProps(newObj, newString, value);
+    }
+    if (parts.length === 1 && newObj[parts] !== value) {
+      obj[parts[0]] = value;
     }
   };
 
-  handleSubmit = (event) => {
+  const clearInputs = () => {
+    clearInputHandler();
+  };
+  const addObjectToState = (value) => {
+    const cloneStateObj = JSON.parse(JSON.stringify(state));
+    cloneStateObj.content.push(value);
+    addObject(cloneStateObj);
+    clearInputs();
+  };
+
+  const handleSubmit = (event) => {
+    console.log(event);
     event.preventDefault();
-
-    let inputPath = this.state.path,
-      value = this.state.value,
-      index = inputPath.match(/[0-9]/) + "",
-      sliceIndex = inputPath.indexOf("]") + 2,
-      path = inputPath.slice(sliceIndex).split("."),
-      contentCopy = [...this.state.content],
-      objCopy = { ...contentCopy[index] },
-      objOut = this.changeObject(objCopy, path, value);
-
-    contentCopy[index] = objOut;
-    this.setState({ content: contentCopy });
+    if (typeof inputValue === "object") {
+      addObjectToState(state.value);
+    }
+    if (typeof inputValue !== "object") {
+      console.log(inputPath);
+      console.log(inputValue);
+      console.log("изменение свойства");
+      console.log(state.path);
+      console.log(state.value);
+      const cloneStateObj = JSON.parse(JSON.stringify(state));
+      changeProps(cloneStateObj, state.path, state.value);
+      changeObject(cloneStateObj);
+      clearInputs();
+    }
   };
 
-  render() {
-    let content = this.state.content.map((item, index) => {
-      return this.elementCreator(item, index);
-    });
-    return (
-      <>
-        <div className="header">
-          <form onSubmit={this.handleSubmit}>
-            <label>
-              Путь
-              <input
-                type="text"
-                className="path"
-                onBlur={(e) => {
-                  this.setState({ path: e.target.value });
-                }}
-              />
-            </label>
-            <label>
-              Новое значение
-              <input
-                type="text"
-                className="newVal"
-                onBlur={(e) => {
-                  this.parseValue(e.target.value);
-                }}
-              />
-            </label>
-            <input type="submit" value="Применить" />
-          </form>
+  return (
+    <>
+      <div className="container">
+        <form onSubmit={handleSubmit}>
+          <label>
+            Путь
+            <input
+              type="text"
+              className="path"
+              value={state.path}
+              onChange={(e) => {
+                console.log(e.target.value);
+                inputHandler("path", e.target.value);
+              }}
+            />
+          </label>
+          <label>
+            Новое значение
+            <input
+              type="text"
+              className="newValue"
+              value={state.value}
+              onChange={(e) => {
+                console.log(e.target.value);
+                parseValue(e.target.value);
+              }}
+            />
+          </label>
+          <input type="submit" value="Применить" />
+        </form>
+        <div className="content">
+          {content.map((item, index) => elementCreator(item, index))}
         </div>
-        <div className="content">{content}</div>
-      </>
-    );
-  }
-}
+      </div>
+    </>
+  );
+};
 
-export default App;
+const mapStateToProps = (state) => {
+  return { content: state.content, state };
+};
+const mapDispatchToProps = {
+  addObject,
+  changeObject,
+  inputHandler,
+  clearInputHandler,
+};
+
+export default connect(mapStateToProps, mapDispatchToProps)(App);
