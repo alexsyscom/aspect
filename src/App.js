@@ -8,8 +8,6 @@ import {
 } from "./actions/";
 import "./App.css";
 
-
-
 const App = ({
   content,
   state,
@@ -18,9 +16,6 @@ const App = ({
   inputHandler,
   clearInputHandler,
 }) => {
-  let inputPath;
-  let inputValue;
-
   const elementCreator = (elem, index) => {
     let styles = {
       border: elem.type === "panel" ? "1px solid black" : null,
@@ -61,21 +56,20 @@ const App = ({
       }
     }
   };
-
   const parseValue = (value) => {
     if (/{/.test(value)) {
-      inputHandler(
+      return (
         "value",
         JSON.parse(
           value.replace(/'/g, "").replace(/\b((?!false|true)(\w+))/g, '"$&"')
         )
       );
     } else if (/\d/.test(value)) {
-      inputHandler("value", +value);
+      return ("value", +value);
     } else if (/false|true/.test(value)) {
-      inputHandler("value", value === "true" ? true : false);
+      return ("value", value === "true" ? true : false);
     } else {
-      inputHandler("value", value);
+      return ("value", value);
     }
   };
 
@@ -109,19 +103,13 @@ const App = ({
   };
 
   const handleSubmit = (event) => {
-    console.log(event);
     event.preventDefault();
-    if (typeof inputValue === "object") {
-      addObjectToState(state.value);
+    if (typeof parseValue(state.value) === "object") {
+      addObjectToState(parseValue(state.value));
     }
-    if (typeof inputValue !== "object") {
-      console.log(inputPath);
-      console.log(inputValue);
-      console.log("изменение свойства");
-      console.log(state.path);
-      console.log(state.value);
+    if (typeof parseValue(state.value) !== "object") {
       const cloneStateObj = JSON.parse(JSON.stringify(state));
-      changeProps(cloneStateObj, state.path, state.value);
+      changeProps(cloneStateObj, state.path, parseValue(state.value));
       changeObject(cloneStateObj);
       clearInputs();
     }
@@ -138,7 +126,6 @@ const App = ({
               className="path"
               value={state.path}
               onChange={(e) => {
-                console.log(e.target.value);
                 inputHandler("path", e.target.value);
               }}
             />
@@ -150,8 +137,7 @@ const App = ({
               className="newValue"
               value={state.value}
               onChange={(e) => {
-                console.log(e.target.value);
-                parseValue(e.target.value);
+                inputHandler("value", e.target.value);
               }}
             />
           </label>
